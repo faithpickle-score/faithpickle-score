@@ -1,80 +1,107 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 type Match = {
+  id?: string;
   player1: string;
   player2: string;
   score: string;
-  date: string;
+  created_at?: string;
 };
 
-export default function Home() {
+export default function Page() {
   const [player1, setPlayer1] = useState("");
   const [player2, setPlayer2] = useState("");
   const [score, setScore] = useState("");
   const [matches, setMatches] = useState<Match[]>([]);
 
-  const addMatch = () => {
-    if (!player1 || !player2 || !score) return;
+  // 保存関数
+  async function saveMatch() {
+    if (!player1 || !player2 || !score) {
+      alert("プレイヤー名とスコアは必須です");
+      return;
+    }
 
-    const newMatch: Match = {
-      player1,
-      player2,
-      score,
-      date: new Date().toLocaleDateString(),
-    };
+    try {
+      const { data, error } = await supabase
+        .from("matches")
+        .insert([{ player1, player2, score, created_at: new Date().toISOString() }]);
 
-    setMatches([newMatch, ...matches]);
-    setPlayer1("");
-    setPlayer2("");
-    setScore("");
-  };
+      if (error) {
+        // エラー内容を必ず表示
+        alert("保存失敗: " + error.message);
+        console.error(error);
+      } else {
+        alert("保存成功！");
+        fetchMatches(); // 保存後に最新データ取得
+        setPlayer1("");
+        setPlayer2("");
+        setScore("");
+      }
+    } catch (err) {
+      alert("予期せぬエラー: " + err);
+      console.error(err);
+    }
+  }
+
+  // 対戦履歴取得
+  async function fetchMatches() {
+    try {
+      const { data, error } = await supabase
+        .from("matches")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        alert("履歴取得失敗: " + error.message);
+        console.error(error);
+      } else if (data) {
+        setMatches(data);
+      }
+    } catch (err) {
+      alert("予期せぬエラー: " + err);
+      console.error(err);
+    }
+  }
+
+  useEffect(() => {
+    fetchMatches();
+  }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: 20 }}>
+      <h1>対戦結果入力</h1>
 
-        <h1 className="text-2xl font-bold text-center mb-6">
-          ピックルボール対戦履歴
-        </h1>
+      <input
+        placeholder="プレイヤー1"
+        value={player1}
+        onChange={(e) => setPlayer1(e.target.value)}
+        style={{ marginRight: 5 }}
+      />
+      <input
+        placeholder="プレイヤー2"
+        value={player2}
+        onChange={(e) => setPlayer2(e.target.value)}
+        style={{ marginRight: 5 }}
+      />
+      <input
+        placeholder="スコア（例：11-8）"
+        value={score}
+        onChange={(e) => setScore(e.target.value)}
+        style={{ marginRight: 5 }}
+      />
 
-        <input
-          className="w-full border p-2 mb-3 rounded"
-          placeholder="プレイヤー1"
-          value={player1}
-          onChange={(e) => setPlayer1(e.target.value)}
-        />
+      <button onClick={saveMatch}>保存</button>
 
-        <input
-          className="w-full border p-2 mb-3 rounded"
-          placeholder="プレイヤー2"
-          value={player2}
-          onChange={(e) => setPlayer2(e.target.value)}
-        />
-
-        <input
-          className="w-full border p-2 mb-3 rounded"
-          placeholder="スコア 例:11-8"
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-        />
-
-        <button
-          className="w-full bg-pink-500 text-white p-2 rounded mb-6"
-          onClick={addMatch}
-        >
-          試合を保存
-        </button>
-
-        <h2 className="font-bold mb-2">試合履歴</h2>
-
-        {matches.map((m, i) => (
-          <div key={i} className="border-b py-2">
-            {m.date} {m.player1} vs {m.player2} {m.score}
-          </div>
+      <h2>対戦履歴</h2>
+      <ul>
+        {matches.map((m) => (
+          <li key={m.id}>
+            {m.player1} vs {m.player2} → {m.score}
+          </li>
         ))}
-
-      </div>
-    </main>
+      </ul>
+    </div>
   );
 }
